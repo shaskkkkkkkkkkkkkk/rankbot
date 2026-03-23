@@ -1,3 +1,12 @@
+// Проверка переменных окружения
+console.log('Environment variables:');
+console.log('DISCORD_TOKEN exists:', !!process.env.DISCORD_TOKEN);
+console.log('DISCORD_TOKEN length:', process.env.DISCORD_TOKEN ? process.env.DISCORD_TOKEN.length : 0);
+
+if (!process.env.DISCORD_TOKEN) {
+    console.error('❌ DISCORD_TOKEN is missing!');
+    process.exit(1);
+}
 require('dotenv').config();
 const { Client, Intents } = require('discord.js');
 
