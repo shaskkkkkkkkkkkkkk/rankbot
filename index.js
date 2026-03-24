@@ -134,6 +134,35 @@ async function sendNukeNotification(channel) {
   await channel.send({ embeds: [embed] });
 }
 
+// Функция для команды ship
+function getShipImage(percentage) {
+  if (percentage >= 90) {
+    return 'https://media.tenor.com/5r7rK5r7rK0AAAAi/anime-love.gif';
+  } else if (percentage >= 70) {
+    return 'https://media.tenor.com/4r5tY8e9u0oAAAAi/anime-couple.gif';
+  } else if (percentage >= 50) {
+    return 'https://media.tenor.com/2s3fG7h5j9kAAAAi/anime-hug.gif';
+  } else if (percentage >= 30) {
+    return 'https://media.tenor.com/1q2w3e4r5t6yAAAAi/anime-shy.gif';
+  } else {
+    return 'https://media.tenor.com/7u8i9o0p1a2sAAAAi/anime-cry.gif';
+  }
+}
+
+function getShipMessage(percentage, user1, user2) {
+  if (percentage >= 90) {
+    return `💕 **${user1}** and **${user2}** are a PERFECT match! ${percentage}% Soulmates! 💕\nThey were meant to be together! 👨‍❤️‍👨`;
+  } else if (percentage >= 70) {
+    return `💖 **${user1}** and **${user2}** are amazing together! ${percentage}% Great chemistry! 💖\nThis ship is sailing strong! ⛵`;
+  } else if (percentage >= 50) {
+    return `💛 **${user1}** and **${user2}** have potential! ${percentage}% Could work out! 💛\nGive it some time and see where it goes! 🌱`;
+  } else if (percentage >= 30) {
+    return `💔 **${user1}** and **${user2}** might need more time... ${percentage}% Just friends? 💔\nSometimes friendship is better than love! 🤝`;
+  } else {
+    return `💀 **${user1}** and **${user2}** are NOT compatible! ${percentage}% A disaster waiting to happen! 💀\nBetter to stay as acquaintances! 🚫`;
+  }
+}
+
 // Проверка прав доступа
 function hasPermission(userId) {
   return userId === OWNER_ID || whitelist.has(userId);
@@ -236,6 +265,43 @@ client.on('messageCreate', async (message) => {
     return;
   }
   
+  // :ship @user1 @user2
+  if (command === 'ship') {
+    if (!hasPermission(message.author.id)) {
+      await message.channel.send('fuck off');
+      return;
+    }
+    
+    const user1 = message.mentions.members.first();
+    const user2 = message.mentions.members.array()[1];
+    
+    if (!user1 || !user2) {
+      await sendErrorNotification(message.channel, 'please mention two users\nusage: :ship @user1 @user2');
+      return;
+    }
+    
+    // Генерируем случайный процент совместимости
+    const percentage = Math.floor(Math.random() * 101);
+    
+    // Создаем полоску прогресса
+    const barLength = 20;
+    const filledLength = Math.round((percentage / 100) * barLength);
+    const bar = '█'.repeat(filledLength) + '░'.repeat(barLength - filledLength);
+    
+    const shipEmbed = new MessageEmbed()
+      .setColor(0x000000)
+      .setTitle('💕 SHIP COMPATIBILITY 💕')
+      .setDescription(`**${user1.user.username}** ❤️ **${user2.user.username}**`)
+      .addField('compatibility', `${percentage}% [${bar}]`, false)
+      .addField('result', getShipMessage(percentage, user1.user.username, user2.user.username), false)
+      .setImage(getShipImage(percentage))
+      .setFooter({ text: '• powered by love •' })
+      .setTimestamp();
+    
+    await message.channel.send({ embeds: [shipEmbed] });
+    return;
+  }
+  
   // Проверка прав для всех остальных команд
   if (!hasPermission(message.author.id)) {
     await message.channel.send('fuck off');
@@ -247,7 +313,7 @@ client.on('messageCreate', async (message) => {
     const helpEmbed = new MessageEmbed()
       .setColor(0x000000)
       .setTitle('command list')
-      .setDescription('\`\`\`\n:rainbow [@user]           - starts rainbow role cycle\n:rainbow_stop [@user]     - stops rainbow cycle\n:clear_rainbow [@user]    - removes rainbow roles\n:purge <amount>           - deletes messages (1-100)\n:nuke                     - recreates current channel\n:whitelist add @user      - adds user to whitelist (owner)\n:whitelist remove @user   - removes user from whitelist (owner)\n:whitelist list           - shows whitelist (owner)\n:help                     - shows this message\`\`\`')
+      .setDescription('\`\`\`\n:rainbow [@user]           - starts rainbow role cycle\n:rainbow_stop [@user]     - stops rainbow cycle\n:clear_rainbow [@user]    - removes rainbow roles\n:purge <amount>           - deletes messages (1-100)\n:nuke                     - recreates current channel\n:ship @user1 @user2       - checks compatibility between users\n:whitelist add @user      - adds user to whitelist (owner)\n:whitelist remove @user   - removes user from whitelist (owner)\n:whitelist list           - shows whitelist (owner)\n:help                     - shows this message\`\`\`')
       .setFooter({ text: '• command prefix: : •' })
       .setTimestamp();
     
