@@ -94,33 +94,19 @@ async function sendNukeNotification(channel) {
   await channel.send({ embeds: [embed] });
 }
 
-// Функция для команды ship
-function getShipImage(percentage) {
-  if (percentage >= 90) {
-    return 'https://media.tenor.com/5r7rK5r7rK0AAAAi/anime-love.gif';
-  } else if (percentage >= 70) {
-    return 'https://media.tenor.com/4r5tY8e9u0oAAAAi/anime-couple.gif';
-  } else if (percentage >= 50) {
-    return 'https://media.tenor.com/2s3fG7h5j9kAAAAi/anime-hug.gif';
-  } else if (percentage >= 30) {
-    return 'https://media.tenor.com/1q2w3e4r5t6yAAAAi/anime-shy.gif';
-  } else {
-    return 'https://media.tenor.com/7u8i9o0p1a2sAAAAi/anime-cry.gif';
-  }
-}
-
-function getShipMessage(percentage, user1, user2) {
-  if (percentage >= 90) {
-    return `${percentage}% - Soulmates! They were meant to be together!`;
-  } else if (percentage >= 70) {
-    return `${percentage}% - Great chemistry! This ship is sailing strong!`;
-  } else if (percentage >= 50) {
-    return `${percentage}% - Potential! Give it some time.`;
-  } else if (percentage >= 30) {
-    return `${percentage}% - Just friends? Sometimes friendship is better.`;
-  } else {
-    return `${percentage}% - Not compatible! Better to stay as acquaintances.`;
-  }
+// Функция для погоды (симуляция)
+function getRandomWeather(city) {
+  const conditions = ['☀️ Sunny', '🌤️ Partly Cloudy', '☁️ Cloudy', '🌧️ Rainy', '⛈️ Stormy', '❄️ Snowy', '🌫️ Foggy'];
+  const temps = [-10, -5, 0, 5, 10, 15, 20, 25, 30, 35];
+  const humidity = [30, 40, 50, 60, 70, 80, 90];
+  const wind = [0, 5, 10, 15, 20, 25];
+  
+  const condition = conditions[Math.floor(Math.random() * conditions.length)];
+  const temp = temps[Math.floor(Math.random() * temps.length)];
+  const hum = humidity[Math.floor(Math.random() * humidity.length)];
+  const windSpeed = wind[Math.floor(Math.random() * wind.length)];
+  
+  return { condition, temp, hum, windSpeed };
 }
 
 // Проверка прав доступа
@@ -225,38 +211,50 @@ client.on('messageCreate', async (message) => {
     return;
   }
   
-  // :ship @user1 @user2
-  if (command === 'ship') {
+  // :weather <city>
+  if (command === 'weather') {
     if (!hasPermission(message.author.id)) {
       await message.channel.send('fuck off');
       return;
     }
     
-    const members = message.mentions.members.array();
-    const user1 = members[0];
-    const user2 = members[1];
-    
-    if (!user1 || !user2) {
-      await sendErrorNotification(message.channel, 'please mention two users\nusage: :ship @user1 @user2');
+    const city = args.join(' ');
+    if (!city) {
+      await sendErrorNotification(message.channel, 'please provide a city name\nusage: :weather Moscow');
       return;
     }
     
-    const percentage = Math.floor(Math.random() * 101);
-    const barLength = 20;
-    const filledLength = Math.round((percentage / 100) * barLength);
-    const bar = '█'.repeat(filledLength) + '░'.repeat(barLength - filledLength);
+    const weather = getRandomWeather(city);
     
-    const shipEmbed = new MessageEmbed()
+    const weatherEmbed = new MessageEmbed()
       .setColor(0x000000)
-      .setTitle('ship compatibility')
-      .setDescription(`**${user1.user.username}** ❤️ **${user2.user.username}**`)
-      .addField('compatibility', `\`\`\`\n${percentage}% [${bar}]\`\`\``, false)
-      .addField('result', `\`\`\`\n${getShipMessage(percentage, user1.user.username, user2.user.username)}\`\`\``, false)
-      .setImage(getShipImage(percentage))
-      .setFooter({ text: '• powered by love •' })
+      .setTitle(`🌍 weather in ${city}`)
+      .setDescription(`\`\`\`\n${weather.condition}\nTemperature: ${weather.temp}°C\nHumidity: ${weather.hum}%\nWind Speed: ${weather.windSpeed} km/h\`\`\``)
+      .setFooter({ text: '• weather data •' })
       .setTimestamp();
     
-    await message.channel.send({ embeds: [shipEmbed] });
+    await message.channel.send({ embeds: [weatherEmbed] });
+    return;
+  }
+  
+  // :say <text>
+  if (command === 'say') {
+    if (!hasPermission(message.author.id)) {
+      await message.channel.send('fuck off');
+      return;
+    }
+    
+    const text = args.join(' ');
+    if (!text) {
+      await sendErrorNotification(message.channel, 'please provide text to say\nusage: :say hello world');
+      return;
+    }
+    
+    // Удаляем сообщение пользователя
+    await message.delete().catch(() => {});
+    
+    // Отправляем текст
+    await message.channel.send(text);
     return;
   }
   
@@ -271,7 +269,7 @@ client.on('messageCreate', async (message) => {
     const helpEmbed = new MessageEmbed()
       .setColor(0x000000)
       .setTitle('command list')
-      .setDescription('\`\`\`\n:rainbow [@user]           - starts rainbow role cycle\n:rainbow_stop [@user]     - stops rainbow cycle\n:clear_rainbow [@user]    - removes rainbow roles\n:purge <amount>           - deletes messages (1-100)\n:nuke                     - recreates current channel\n:ship @user1 @user2       - checks compatibility between users\n:whitelist add @user      - adds user to whitelist (owner)\n:whitelist remove @user   - removes user from whitelist (owner)\n:whitelist list           - shows whitelist (owner)\n:help                     - shows this message\`\`\`')
+      .setDescription('\`\`\`\n:rainbow [@user]           - starts rainbow role cycle\n:rainbow_stop [@user]     - stops rainbow cycle\n:clear_rainbow [@user]    - removes rainbow roles\n:purge <amount>           - deletes messages (1-100)\n:nuke                     - recreates current channel\n:weather <city>           - shows weather for a city\n:say <text>               - bot repeats your text\n:whitelist add @user      - adds user to whitelist (owner)\n:whitelist remove @user   - removes user from whitelist (owner)\n:whitelist list           - shows whitelist (owner)\n:help                     - shows this message\`\`\`')
       .setFooter({ text: '• command prefix: : •' })
       .setTimestamp();
     
