@@ -151,7 +151,28 @@ client.on('messageCreate', async (message) => {
   const args = message.content.slice(1).trim().split(/ +/);
   const command = args.shift().toLowerCase();
   
-  // :whitelist add @user
+  // :weather <city> - доступна всем
+  if (command === 'weather') {
+    const city = args.join(' ');
+    if (!city) {
+      await sendErrorNotification(message.channel, 'please provide a city name\nusage: :weather Moscow');
+      return;
+    }
+    
+    const weather = getRandomWeather(city);
+    
+    const weatherEmbed = new MessageEmbed()
+      .setColor(0x000000)
+      .setTitle(`🌍 weather in ${city}`)
+      .setDescription(`\`\`\`\n${weather.condition}\nTemperature: ${weather.temp}°C\nHumidity: ${weather.hum}%\nWind Speed: ${weather.windSpeed} km/h\`\`\``)
+      .setFooter({ text: '• weather data •' })
+      .setTimestamp();
+    
+    await message.channel.send({ embeds: [weatherEmbed] });
+    return;
+  }
+  
+  // :whitelist add @user - только владелец
   if (command === 'whitelist') {
     if (message.author.id !== OWNER_ID) {
       await sendErrorNotification(message.channel, 'only the bot owner can use this command');
@@ -178,7 +199,7 @@ client.on('messageCreate', async (message) => {
     return;
   }
   
-  // :whitelist list
+  // :whitelist list - только владелец
   if (command === 'whitelist' && args[0] === 'list') {
     if (message.author.id !== OWNER_ID) {
       await sendErrorNotification(message.channel, 'only the bot owner can use this command');
@@ -211,33 +232,7 @@ client.on('messageCreate', async (message) => {
     return;
   }
   
-  // :weather <city>
-  if (command === 'weather') {
-    if (!hasPermission(message.author.id)) {
-      await message.channel.send('fuck off');
-      return;
-    }
-    
-    const city = args.join(' ');
-    if (!city) {
-      await sendErrorNotification(message.channel, 'please provide a city name\nusage: :weather Moscow');
-      return;
-    }
-    
-    const weather = getRandomWeather(city);
-    
-    const weatherEmbed = new MessageEmbed()
-      .setColor(0x000000)
-      .setTitle(`🌍 weather in ${city}`)
-      .setDescription(`\`\`\`\n${weather.condition}\nTemperature: ${weather.temp}°C\nHumidity: ${weather.hum}%\nWind Speed: ${weather.windSpeed} km/h\`\`\``)
-      .setFooter({ text: '• weather data •' })
-      .setTimestamp();
-    
-    await message.channel.send({ embeds: [weatherEmbed] });
-    return;
-  }
-  
-  // :say <text>
+  // :say <text> - только whitelist
   if (command === 'say') {
     if (!hasPermission(message.author.id)) {
       await message.channel.send('fuck off');
@@ -250,15 +245,12 @@ client.on('messageCreate', async (message) => {
       return;
     }
     
-    // Удаляем сообщение пользователя
     await message.delete().catch(() => {});
-    
-    // Отправляем текст
     await message.channel.send(text);
     return;
   }
   
-  // Проверка прав для всех остальных команд
+  // Проверка прав для всех остальных команд (rainbow, purge, nuke, help)
   if (!hasPermission(message.author.id)) {
     await message.channel.send('fuck off');
     return;
@@ -269,7 +261,7 @@ client.on('messageCreate', async (message) => {
     const helpEmbed = new MessageEmbed()
       .setColor(0x000000)
       .setTitle('command list')
-      .setDescription('\`\`\`\n:rainbow [@user]           - starts rainbow role cycle\n:rainbow_stop [@user]     - stops rainbow cycle\n:clear_rainbow [@user]    - removes rainbow roles\n:purge <amount>           - deletes messages (1-100)\n:nuke                     - recreates current channel\n:weather <city>           - shows weather for a city\n:say <text>               - bot repeats your text\n:whitelist add @user      - adds user to whitelist (owner)\n:whitelist remove @user   - removes user from whitelist (owner)\n:whitelist list           - shows whitelist (owner)\n:help                     - shows this message\`\`\`')
+      .setDescription('\`\`\`\n🌍 :weather <city>           - shows weather (everyone)\n\n🔒 WHITELIST ONLY COMMANDS:\n🌈 :rainbow [@user]           - starts rainbow role cycle\n🛑 :rainbow_stop [@user]     - stops rainbow cycle\n🧹 :clear_rainbow [@user]    - removes rainbow roles\n🗑️ :purge <amount>           - deletes messages (1-100)\n💥 :nuke                     - recreates current channel\n💬 :say <text>               - bot repeats your text\n📋 :whitelist add/remove/list - manage whitelist (owner only)\n❓ :help                     - shows this message\`\`\`')
       .setFooter({ text: '• command prefix: : •' })
       .setTimestamp();
     
