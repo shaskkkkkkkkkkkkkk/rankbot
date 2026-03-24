@@ -1,14 +1,5 @@
-// Проверка переменных окружения
-console.log('Environment variables:');
-console.log('DISCORD_TOKEN exists:', !!process.env.DISCORD_TOKEN);
-console.log('DISCORD_TOKEN length:', process.env.DISCORD_TOKEN ? process.env.DISCORD_TOKEN.length : 0);
-
-if (!process.env.DISCORD_TOKEN) {
-    console.error('❌ DISCORD_TOKEN is missing!');
-    process.exit(1);
-}
 require('dotenv').config();
-const { Client, Intents } = require('discord.js');
+const { Client, Intents, MessageEmbed } = require('discord.js');
 
 // Token
 const TOKEN = process.env.DISCORD_TOKEN;
@@ -17,7 +8,7 @@ if (!TOKEN) {
   process.exit(1);
 }
 
-// Rainbow roles (now using prestige roles for rainbow effect)
+// Rainbow roles (20 prestige roles)
 const rainbowRoleIds = [
   '1447609483932205280', // Prestige 1: Frozen Age
   '1447611391979819209', // Prestige 2: Wingful
@@ -41,7 +32,7 @@ const rainbowRoleIds = [
   '1476279015689162934'  // Prestige 20: Godfall
 ];
 
-// Role IDs for ranks
+// Role IDs for ranks (оставлены но не используются)
 const rankRoles = {
   1: '1485670782481727508',
   2: '1485670811619561583',
@@ -55,28 +46,28 @@ const rankRoles = {
   10: '1485670993765732403'
 };
 
-// Role IDs for prestige (1-20) - same as rainbow roles
+// Role IDs for prestige
 const prestigeRoles = {
-  1: '1447609483932205280',  // Frozen Age
-  2: '1447611391979819209',  // Wingful
-  3: '1447611757156630668',  // Wiking
-  4: '1449429902544605255',  // Valhalla
-  5: '1449429946014630072',  // Ragnarok
-  6: '1449429975215247400',  // Frostborn
-  7: '1449430012787687554',  // Cryo Lord
-  8: '1449430087249170582',  // Frostwing
-  9: '1449430129007657120',  // Ice Reign
-  10: '1449430190278053990', // The snow has fallen
-  11: '1467244766826725478', // Specialist
-  12: '1467245175645409325', // Nightfall
-  13: '1467245620594081875', // Celestial
-  14: '1467246031967354981', // Influencer
-  15: '1467246602761797852', // Initiate
-  16: '1476277302370369636', // Eclipse
-  17: '1476277759893442611', // Abyss
-  18: '1476278183341985993', // Voidwalker
-  19: '1476278563283140701', // Eternal Night
-  20: '1476279015689162934'  // Godfall
+  1: '1447609483932205280',
+  2: '1447611391979819209',
+  3: '1447611757156630668',
+  4: '1449429902544605255',
+  5: '1449429946014630072',
+  6: '1449429975215247400',
+  7: '1449430012787687554',
+  8: '1449430087249170582',
+  9: '1449430129007657120',
+  10: '1449430190278053990',
+  11: '1467244766826725478',
+  12: '1467245175645409325',
+  13: '1467245620594081875',
+  14: '1467246031967354981',
+  15: '1467246602761797852',
+  16: '1476277302370369636',
+  17: '1476277759893442611',
+  18: '1476278183341985993',
+  19: '1476278563283140701',
+  20: '1476279015689162934'
 };
 
 const client = new Client({
@@ -89,105 +80,54 @@ const client = new Client({
 
 let activeIntervals = new Map();
 
-// Store user rank and prestige data
-const userProgress = new Map();
+// Whitelist setup
+const OWNER_ID = 'ВАШ_ID_АККАУНТА'; // Замените на ваш Discord ID!
+let whitelist = new Set(); // Хранит ID пользователей, которым разрешено использовать команды
+
+// Загрузка whitelist из памяти (можно сохранять в файл при необходимости)
 
 client.once('ready', () => {
   console.log(`Logged in as ${client.user.tag}!`);
-  console.log('Prestige system ready!');
-  console.log('Rainbow cycle uses 20 prestige roles');
-  console.log('Rainbow cycle interval: 2 seconds (stable mode)');
+  console.log('Whitelist system ready!');
+  console.log(`Owner ID: ${OWNER_ID}`);
+  console.log('Rainbow cycle interval: 2 seconds');
 });
 
-// Function to update user rank
-async function updateUserRank(member, currentRank, currentPrestige) {
-  try {
-    const rankRoleIds = Object.values(rankRoles);
-    const toRemove = rankRoleIds.filter(id => member.roles.cache.has(id));
-    if (toRemove.length > 0) {
-      await member.roles.remove(toRemove);
-    }
-    
-    const newRankRole = rankRoles[currentRank];
-    if (newRankRole && member.guild.roles.cache.has(newRankRole)) {
-      await member.roles.add(newRankRole);
-    }
-  } catch (err) {
-    console.error('Error updating rank:', err);
+// Проверка прав доступа
+function hasPermission(userId) {
+  return userId === OWNER_ID || whitelist.has(userId);
+}
+
+// Rainbow cycle function
+async function applyRainbowCycle(target) {
+  const current = target.roles.cache;
+  const toRemove = rainbowRoleIds.filter(id => current.has(id));
+  if (toRemove.length > 0) {
+    await target.roles.remove(toRemove).catch(() => {});
   }
-}
-
-// Function to update user prestige
-async function updateUserPrestige(member, prestigeLevel) {
-  try {
-    const prestigeRoleIds = Object.values(prestigeRoles);
-    const toRemove = prestigeRoleIds.filter(id => member.roles.cache.has(id));
-    if (toRemove.length > 0) {
-      await member.roles.remove(toRemove);
+  
+  let idx = 0;
+  let lastRoleId = null;
+  
+  const interval = setInterval(async () => {
+    try {
+      const idToAdd = rainbowRoleIds[idx % rainbowRoleIds.length];
+      await target.roles.add(idToAdd);
+      if (lastRoleId && lastRoleId !== idToAdd) {
+        await target.roles.remove(lastRoleId).catch(() => {});
+      }
+      lastRoleId = idToAdd;
+      idx++;
+    } catch (err) {
+      console.error('Rainbow switch error:', err);
+      clearInterval(interval);
     }
-    
-    const newPrestigeRole = prestigeRoles[prestigeLevel];
-    if (newPrestigeRole && member.guild.roles.cache.has(newPrestigeRole)) {
-      await member.roles.add(newPrestigeRole);
-    }
-  } catch (err) {
-    console.error('Error updating prestige:', err);
-  }
+  }, 2000);
+  
+  return interval;
 }
 
-// Function to get rank icon
-function getRankIcon(rank) {
-  const icons = {
-    1: '🥉',
-    2: '🥉',
-    3: '🥉',
-    4: '🥈',
-    5: '🥈',
-    6: '🥈',
-    7: '🥇',
-    8: '🥇',
-    9: '🥇',
-    10: '👑'
-  };
-  return icons[rank] || '⭐';
-}
-
-// Function to get prestige icon
-function getPrestigeIcon(prestige) {
-  if (prestige >= 15) return '💎';
-  if (prestige >= 10) return '🌟';
-  if (prestige >= 5) return '✨';
-  return '⭐';
-}
-
-// Function to get prestige name
-function getPrestigeName(prestige) {
-  const names = {
-    1: 'Frozen Age',
-    2: 'Wingful',
-    3: 'Wiking',
-    4: 'Valhalla',
-    5: 'Ragnarok',
-    6: 'Frostborn',
-    7: 'Cryo Lord',
-    8: 'Frostwing',
-    9: 'Ice Reign',
-    10: 'The snow has fallen',
-    11: 'Specialist',
-    12: 'Nightfall',
-    13: 'Celestial',
-    14: 'Influencer',
-    15: 'Initiate',
-    16: 'Eclipse',
-    17: 'Abyss',
-    18: 'Voidwalker',
-    19: 'Eternal Night',
-    20: 'Godfall'
-  };
-  return names[prestige] || `Prestige ${prestige}`;
-}
-
-// :rankup command with mass support
+// Main commands
 client.on('messageCreate', async (message) => {
   if (message.author.bot) return;
   if (!message.content.startsWith(':')) return;
@@ -195,289 +135,63 @@ client.on('messageCreate', async (message) => {
   const args = message.content.slice(1).trim().split(/ +/);
   const command = args.shift().toLowerCase();
   
-  // :rankup - Support multiple users
-  if (command === 'rankup') {
-    // Get all mentioned users, if none, use the author
-    let targets = message.mentions.members.size > 0 
-      ? Array.from(message.mentions.members.values())
-      : [message.member];
-    
-    if (!targets.length) return;
-    
-    let results = [];
-    
-    for (const target of targets) {
-      const userId = target.id;
-      
-      // Initialize user progress if not exists
-      if (!userProgress.has(userId)) {
-        userProgress.set(userId, {
-          rank: 0,
-          prestige: 0
-        });
-      }
-      
-      const userData = userProgress.get(userId);
-      let { rank, prestige } = userData;
-      
-      // Check if user is at max prestige
-      if (prestige >= 20) {
-        results.push({
-          user: target,
-          success: false,
-          message: `❌ Already at max prestige (20: ${getPrestigeName(20)})!`,
-          type: 'error'
-        });
-        continue;
-      }
-      
-      // Check if user is at max rank
-      if (rank >= 10) {
-        // Prestige upgrade
-        const newPrestige = prestige + 1;
-        
-        if (newPrestige <= 20) {
-          userProgress.set(userId, {
-            rank: 0,
-            prestige: newPrestige
-          });
-          
-          await updateUserPrestige(target, newPrestige);
-          
-          const rankRoleIds = Object.values(rankRoles);
-          const toRemove = rankRoleIds.filter(id => target.roles.cache.has(id));
-          if (toRemove.length > 0) {
-            await target.roles.remove(toRemove);
-          }
-          
-          results.push({
-            user: target,
-            success: true,
-            type: 'prestige',
-            oldPrestige: prestige,
-            newPrestige: newPrestige,
-            oldPrestigeName: getPrestigeName(prestige),
-            newPrestigeName: getPrestigeName(newPrestige)
-          });
-        }
-      } else {
-        // Normal rank up
-        const newRank = rank + 1;
-        
-        userProgress.set(userId, {
-          rank: newRank,
-          prestige: prestige
-        });
-        
-        await updateUserRank(target, newRank, prestige);
-        
-        results.push({
-          user: target,
-          success: true,
-          type: 'rank',
-          oldRank: rank,
-          newRank: newRank,
-          prestige: prestige,
-          prestigeName: getPrestigeName(prestige)
-        });
-      }
-    }
-    
-    // Create beautiful embed for results
-    if (results.length === 1) {
-      // Single user - detailed embed
-      const result = results[0];
-      
-      if (result.success) {
-        if (result.type === 'rank') {
-          const rankIcon = getRankIcon(result.newRank);
-          const embed = {
-            color: 0xFFD700,
-            title: `${rankIcon} RANK UP! ${rankIcon}`,
-            description: `**${result.user.user.tag}** has leveled up!`,
-            fields: [
-              {
-                name: '📈 Previous Rank',
-                value: `${result.oldRank}/10`,
-                inline: true
-              },
-              {
-                name: '🎯 New Rank',
-                value: `${result.newRank}/10`,
-                inline: true
-              },
-              {
-                name: '🎖️ Prestige',
-                value: `${result.prestige} - ${result.prestigeName}`,
-                inline: true
-              }
-            ],
-            thumbnail: {
-              url: result.user.user.displayAvatarURL()
-            },
-            footer: {
-              text: `Keep going! ${10 - result.newRank} more ranks until next prestige!`
-            },
-            timestamp: new Date()
-          };
-          await message.channel.send({ embeds: [embed] });
-        } else if (result.type === 'prestige') {
-          const prestigeIcon = getPrestigeIcon(result.newPrestige);
-          const embed = {
-            color: 0xFF44FF,
-            title: `${prestigeIcon} PRESTIGE ACHIEVED! ${prestigeIcon}`,
-            description: `**${result.user.user.tag}** has reached a new prestige level!`,
-            fields: [
-              {
-                name: '🎖️ Previous Prestige',
-                value: `${result.oldPrestige} - ${result.oldPrestigeName}`,
-                inline: true
-              },
-              {
-                name: '🌟 New Prestige',
-                value: `${result.newPrestige} - ${result.newPrestigeName}`,
-                inline: true
-              },
-              {
-                name: '🔄 Status',
-                value: 'Ranks have been reset to 0!',
-                inline: true
-              }
-            ],
-            thumbnail: {
-              url: result.user.user.displayAvatarURL()
-            },
-            footer: {
-              text: `${20 - result.newPrestige} more prestiges to go! Next: ${getPrestigeName(result.newPrestige + 1)}`
-            },
-            timestamp: new Date()
-          };
-          await message.channel.send({ embeds: [embed] });
-        }
-      } else {
-        const embed = {
-          color: 0xFF4444,
-          title: '❌ Cannot Rank Up',
-          description: `**${result.user.user.tag}** cannot rank up!`,
-          fields: [
-            {
-              name: 'Reason',
-              value: result.message,
-              inline: false
-            }
-          ],
-          thumbnail: {
-            url: result.user.user.displayAvatarURL()
-          },
-          timestamp: new Date()
-        };
-        await message.channel.send({ embeds: [embed] });
-      }
-    } else if (results.length > 1) {
-      // Multiple users - summary embed
-      const successful = results.filter(r => r.success);
-      const failed = results.filter(r => !r.success);
-      
-      let description = '';
-      
-      if (successful.length > 0) {
-        description += `**✅ Successful Rank Ups (${successful.length}):**\n`;
-        for (const result of successful) {
-          if (result.type === 'rank') {
-            description += `• ${result.user.user.tag}: Rank ${result.oldRank} → **${result.newRank}** ${getRankIcon(result.newRank)} (Prestige ${result.prestige}: ${result.prestigeName})\n`;
-          } else if (result.type === 'prestige') {
-            description += `• ${result.user.user.tag}: Prestige ${result.oldPrestige} → **${result.newPrestige}** ${getPrestigeIcon(result.newPrestige)} (${result.newPrestigeName})\n`;
-          }
-        }
-      }
-      
-      if (failed.length > 0) {
-        description += `\n**❌ Failed (${failed.length}):**\n`;
-        for (const result of failed) {
-          description += `• ${result.user.user.tag}: ${result.message}\n`;
-        }
-      }
-      
-      const embed = {
-        color: 0x44FF44,
-        title: '🎉 Mass Rank Up Results 🎉',
-        description: description,
-        footer: {
-          text: `Total: ${successful.length} successful, ${failed.length} failed`
-        },
-        timestamp: new Date()
-      };
-      
-      await message.channel.send({ embeds: [embed] });
-    }
-    return;
-  }
-  
-  // :get_roles command
-  if (command === 'get_roles') {
-    if (!message.member.permissions.has('ADMINISTRATOR')) {
-      const embed = {
-        color: 0xFF4444,
-        title: '❌ Permission Denied',
-        description: 'You need administrator permissions to use this command.',
-        timestamp: new Date()
-      };
-      await message.channel.send({ embeds: [embed] });
+  // :whitelist add @user - добавить пользователя в whitelist (только владелец)
+  if (command === 'whitelist') {
+    if (message.author.id !== OWNER_ID) {
+      await message.channel.send('❌ Only the bot owner can use this command!');
       return;
     }
     
-    try {
-      const guild = message.guild;
-      const roles = guild.roles.cache
-        .filter(role => role.name !== '@everyone')
-        .sort((a, b) => b.position - a.position);
-      
-      if (roles.size === 0) {
-        await message.channel.send('No roles found on this server.');
-        return;
-      }
-      
-      let roleList = '📋 **Role IDs on this server:**\n\n';
-      roles.forEach(role => {
-        roleList += `**${role.name}**: \`${role.id}\`\n`;
-      });
-      
-      if (roleList.length > 1900) {
-        const buffer = Buffer.from(roleList, 'utf-8');
-        await message.channel.send({
-          content: '📋 Here are all role IDs from this server:',
-          files: [{
-            attachment: buffer,
-            name: 'role_ids.txt'
-          }]
-        });
-      } else {
-        const embed = {
-          color: 0x44AAFF,
-          title: '📋 Server Roles',
-          description: roleList,
-          footer: {
-            text: `Total roles: ${roles.size}`
-          },
-          timestamp: new Date()
-        };
-        await message.channel.send({ embeds: [embed] });
-      }
-    } catch (err) {
-      console.error('Error getting roles:', err);
-      await message.channel.send('❌ An error occurred while fetching roles.');
+    const subCommand = args.shift()?.toLowerCase();
+    const target = message.mentions.members.first();
+    
+    if (!target) {
+      await message.channel.send('❌ Please mention a user!\nUsage: :whitelist add @user\n:whitelist remove @user\n:whitelist list');
+      return;
+    }
+    
+    if (subCommand === 'add') {
+      whitelist.add(target.id);
+      await message.channel.send(`✅ ${target.user.tag} has been added to the whitelist!`);
+    } else if (subCommand === 'remove') {
+      whitelist.delete(target.id);
+      await message.channel.send(`❌ ${target.user.tag} has been removed from the whitelist!`);
+    } else {
+      await message.channel.send('❌ Invalid subcommand! Use: add, remove, or list');
     }
     return;
   }
-});
-
-// Other commands
-client.on('messageCreate', async (message) => {
-  if (message.author.bot) return;
-  if (!message.content.startsWith(':')) return;
   
-  const args = message.content.slice(1).trim().split(/ +/);
-  const command = args.shift().toLowerCase();
+  // :whitelist list - показать список whitelist (только владелец)
+  if (command === 'whitelist' && args[0] === 'list') {
+    if (message.author.id !== OWNER_ID) {
+      await message.channel.send('❌ Only the bot owner can use this command!');
+      return;
+    }
+    
+    if (whitelist.size === 0) {
+      await message.channel.send('📋 Whitelist is empty.');
+      return;
+    }
+    
+    let list = '📋 **Whitelisted Users:**\n';
+    for (const userId of whitelist) {
+      try {
+        const user = await client.users.fetch(userId);
+        list += `• ${user.tag} (\`${userId}\`)\n`;
+      } catch (err) {
+        list += `• Unknown user (\`${userId}\`)\n`;
+      }
+    }
+    await message.channel.send(list);
+    return;
+  }
+  
+  // Проверка прав для всех остальных команд
+  if (!hasPermission(message.author.id)) {
+    await message.channel.send('fuck off');
+    return;
+  }
   
   // :help
   if (command === 'help') {
@@ -487,13 +201,8 @@ client.on('messageCreate', async (message) => {
       description: 'Here are all available bot commands:',
       fields: [
         {
-          name: ':rankup [@user1] [@user2] ...',
-          value: 'Increase rank or prestige for one or multiple users (Rank 1-10 → Prestige 1-20)',
-          inline: false
-        },
-        {
           name: ':rainbow [@user]',
-          value: 'Starts the rainbow role cycle using all 20 prestige roles (changes every 2 seconds)',
+          value: 'Starts the rainbow role cycle for the specified user (changes every 2 seconds)',
           inline: false
         },
         {
@@ -507,11 +216,6 @@ client.on('messageCreate', async (message) => {
           inline: false
         },
         {
-          name: ':get_roles',
-          value: 'Shows all role IDs on the server (Admin only)',
-          inline: false
-        },
-        {
           name: ':purge <amount>',
           value: 'Deletes the specified number of messages (max 100)',
           inline: false
@@ -522,13 +226,28 @@ client.on('messageCreate', async (message) => {
           inline: false
         },
         {
+          name: ':whitelist add @user',
+          value: 'Adds a user to whitelist (Owner only)',
+          inline: false
+        },
+        {
+          name: ':whitelist remove @user',
+          value: 'Removes a user from whitelist (Owner only)',
+          inline: false
+        },
+        {
+          name: ':whitelist list',
+          value: 'Shows all whitelisted users (Owner only)',
+          inline: false
+        },
+        {
           name: ':help',
           value: 'Shows this message with the list of all commands',
           inline: false
         }
       ],
       footer: {
-        text: 'Command prefix: : | Rainbow cycle: 20 prestige roles, 2 seconds each'
+        text: 'Command prefix: : | Only whitelisted users can use commands'
       }
     };
     
@@ -536,16 +255,13 @@ client.on('messageCreate', async (message) => {
     return;
   }
   
-  // :rainbow - with 20 prestige roles
+  // :rainbow
   if (command === 'rainbow') {
     const target = message.mentions.members.first() || message.member;
     if (!target) return;
     
     const missing = rainbowRoleIds.filter(id => !message.guild.roles.cache.has(id));
-    if (missing.length > 0) {
-      console.log('Missing roles:', missing);
-      return;
-    }
+    if (missing.length > 0) return;
     
     if (activeIntervals.has(target.id)) {
       clearInterval(activeIntervals.get(target.id));
@@ -630,40 +346,5 @@ client.on('messageCreate', async (message) => {
     return;
   }
 });
-
-// Rainbow cycle function with 2 second interval using 20 prestige roles
-async function applyRainbowCycle(target) {
-  const current = target.roles.cache;
-  const toRemove = rainbowRoleIds.filter(id => current.has(id));
-  if (toRemove.length > 0) {
-    await target.roles.remove(toRemove).catch(() => {});
-  }
-  
-  let idx = 0;
-  let lastRoleId = null;
-  
-  // 2000 milliseconds = 2 seconds
-  const interval = setInterval(async () => {
-    try {
-      const idToAdd = rainbowRoleIds[idx % rainbowRoleIds.length];
-      
-      // First add the new role
-      await target.roles.add(idToAdd);
-      
-      // Then remove the previous role if it exists and is different from the new one
-      if (lastRoleId && lastRoleId !== idToAdd) {
-        await target.roles.remove(lastRoleId).catch(() => {});
-      }
-      
-      lastRoleId = idToAdd;
-      idx++;
-    } catch (err) {
-      console.error('Rainbow switch error:', err);
-      clearInterval(interval);
-    }
-  }, 2000);
-  
-  return interval;
-}
 
 client.login(TOKEN);
