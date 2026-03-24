@@ -151,7 +151,7 @@ client.on('messageCreate', async (message) => {
   const args = message.content.slice(1).trim().split(/ +/);
   const command = args.shift().toLowerCase();
   
-  // :weather <city> - доступна всем (отвечает всегда)
+  // :weather <city> - доступна всем (без fuck off)
   if (command === 'weather') {
     const city = args.join(' ');
     if (!city) {
@@ -175,7 +175,7 @@ client.on('messageCreate', async (message) => {
   // :whitelist add @user - только владелец
   if (command === 'whitelist') {
     if (message.author.id !== OWNER_ID) {
-      // Молча игнорируем
+      await message.channel.send('fuck off');
       return;
     }
     
@@ -202,7 +202,7 @@ client.on('messageCreate', async (message) => {
   // :whitelist list - только владелец
   if (command === 'whitelist' && args[0] === 'list') {
     if (message.author.id !== OWNER_ID) {
-      // Молча игнорируем
+      await message.channel.send('fuck off');
       return;
     }
     
@@ -232,10 +232,10 @@ client.on('messageCreate', async (message) => {
     return;
   }
   
-  // :say <text> - только whitelist (для не whitelist - игнор)
+  // :say <text> - только whitelist
   if (command === 'say') {
     if (!hasPermission(message.author.id)) {
-      // Молча игнорируем
+      await message.channel.send('fuck off');
       return;
     }
     
@@ -250,9 +250,9 @@ client.on('messageCreate', async (message) => {
     return;
   }
   
-  // Для всех остальных команд (rainbow, purge, nuke, help) - только whitelist
+  // Проверка прав для остальных команд (rainbow, purge, nuke, help)
   if (!hasPermission(message.author.id)) {
-    // Молча игнорируем для не whitelist
+    await message.channel.send('fuck off');
     return;
   }
   
