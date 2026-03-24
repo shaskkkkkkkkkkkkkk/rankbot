@@ -81,7 +81,7 @@ const client = new Client({
 let activeIntervals = new Map();
 
 // Whitelist setup
-const OWNER_ID = 'ВАШ_ID_АККАУНТА'; // Замените на ваш Discord ID!
+const OWNER_ID = '722514081856356400'; // Замените на ваш Discord ID!
 let whitelist = new Set(); // Хранит ID пользователей, которым разрешено использовать команды
 
 // Загрузка whitelist из памяти (можно сохранять в файл при необходимости)
