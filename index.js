@@ -32,7 +32,7 @@ const rainbowRoleIds = [
   '1476279015689162934'  // Prestige 20: Godfall
 ];
 
-// Role IDs for ranks (оставлены но не используются)
+// Role IDs for ranks
 const rankRoles = {
   1: '1485670782481727508',
   2: '1485670811619561583',
@@ -81,10 +81,8 @@ const client = new Client({
 let activeIntervals = new Map();
 
 // Whitelist setup
-const OWNER_ID = '722514081856356400'; // Замените на ваш Discord ID!
-let whitelist = new Set(); // Хранит ID пользователей, которым разрешено использовать команды
-
-// Загрузка whitelist из памяти (можно сохранять в файл при необходимости)
+const OWNER_ID = '722514081856356400';
+let whitelist = new Set();
 
 client.once('ready', () => {
   console.log(`Logged in as ${client.user.tag}!`);
@@ -92,6 +90,60 @@ client.once('ready', () => {
   console.log(`Owner ID: ${OWNER_ID}`);
   console.log('Rainbow cycle interval: 2 seconds');
 });
+
+// Черное оформление для успешной команды
+async function sendSuccessNotification(channel, commandName, targetUser = null, extraInfo = null) {
+  const embed = new MessageEmbed()
+    .setColor(0x000000)
+    .setDescription(`**${commandName}**\n\`\`\`\n✓ Command executed successfully\`\`\``)
+    .setFooter({ text: '• command executed •' })
+    .setTimestamp();
+  
+  if (targetUser) {
+    embed.addField('target', `${targetUser.user ? targetUser.user.tag : targetUser.tag || targetUser}`, true);
+  }
+  
+  if (extraInfo) {
+    embed.addField('info', extraInfo, true);
+  }
+  
+  const message = await channel.send({ embeds: [embed] });
+  setTimeout(() => message.delete().catch(() => {}), 3000);
+}
+
+// Черное оформление для ошибки
+async function sendErrorNotification(channel, errorMessage) {
+  const embed = new MessageEmbed()
+    .setColor(0x000000)
+    .setDescription(`**error**\n\`\`\`\n✗ ${errorMessage}\`\`\``)
+    .setFooter({ text: '• command failed •' })
+    .setTimestamp();
+  
+  const message = await channel.send({ embeds: [embed] });
+  setTimeout(() => message.delete().catch(() => {}), 4000);
+}
+
+// Черное оформление для nuke
+async function sendNukeNotification(channel) {
+  const embed = new MessageEmbed()
+    .setColor(0x000000)
+    .setDescription(`**nuke**\n\`\`\`\n✓ Channel has been nuked and recreated\`\`\``)
+    .setFooter({ text: '• channel destroyed and reborn •' })
+    .setTimestamp();
+  
+  await channel.send({ embeds: [embed] });
+}
+
+// Черное оформление для доступа denied
+async function sendDeniedNotification(channel) {
+  const embed = new MessageEmbed()
+    .setColor(0x000000)
+    .setDescription(`**access denied**\n\`\`\`\n✗ fuck off\`\`\``)
+    .setFooter({ text: '• you are not whitelisted •' })
+    .setTimestamp();
+  
+  await channel.send({ embeds: [embed] });
+}
 
 // Проверка прав доступа
 function hasPermission(userId) {
@@ -135,10 +187,10 @@ client.on('messageCreate', async (message) => {
   const args = message.content.slice(1).trim().split(/ +/);
   const command = args.shift().toLowerCase();
   
-  // :whitelist add @user - добавить пользователя в whitelist (только владелец)
+  // :whitelist add @user
   if (command === 'whitelist') {
     if (message.author.id !== OWNER_ID) {
-      await message.channel.send('❌ Only the bot owner can use this command!');
+      await sendErrorNotification(message.channel, 'only the bot owner can use this command');
       return;
     }
     
@@ -146,111 +198,71 @@ client.on('messageCreate', async (message) => {
     const target = message.mentions.members.first();
     
     if (!target) {
-      await message.channel.send('❌ Please mention a user!\nUsage: :whitelist add @user\n:whitelist remove @user\n:whitelist list');
+      await sendErrorNotification(message.channel, 'please mention a user\nusage: :whitelist add @user\n:whitelist remove @user\n:whitelist list');
       return;
     }
     
     if (subCommand === 'add') {
       whitelist.add(target.id);
-      await message.channel.send(`✅ ${target.user.tag} has been added to the whitelist!`);
+      await sendSuccessNotification(message.channel, 'whitelist add', target);
     } else if (subCommand === 'remove') {
       whitelist.delete(target.id);
-      await message.channel.send(`❌ ${target.user.tag} has been removed from the whitelist!`);
+      await sendSuccessNotification(message.channel, 'whitelist remove', target);
     } else {
-      await message.channel.send('❌ Invalid subcommand! Use: add, remove, or list');
+      await sendErrorNotification(message.channel, 'invalid subcommand\nuse: add, remove, or list');
     }
     return;
   }
   
-  // :whitelist list - показать список whitelist (только владелец)
+  // :whitelist list
   if (command === 'whitelist' && args[0] === 'list') {
     if (message.author.id !== OWNER_ID) {
-      await message.channel.send('❌ Only the bot owner can use this command!');
+      await sendErrorNotification(message.channel, 'only the bot owner can use this command');
       return;
     }
     
     if (whitelist.size === 0) {
-      await message.channel.send('📋 Whitelist is empty.');
+      await sendErrorNotification(message.channel, 'whitelist is empty');
       return;
     }
     
-    let list = '📋 **Whitelisted Users:**\n';
+    let list = '';
     for (const userId of whitelist) {
       try {
         const user = await client.users.fetch(userId);
         list += `• ${user.tag} (\`${userId}\`)\n`;
       } catch (err) {
-        list += `• Unknown user (\`${userId}\`)\n`;
+        list += `• unknown user (\`${userId}\`)\n`;
       }
     }
-    await message.channel.send(list);
+    
+    const embed = new MessageEmbed()
+      .setColor(0x000000)
+      .setTitle('whitelist')
+      .setDescription(`\`\`\`\n${list}\`\`\``)
+      .setFooter({ text: `• total: ${whitelist.size} users •` })
+      .setTimestamp();
+    
+    await message.channel.send({ embeds: [embed] });
     return;
   }
   
   // Проверка прав для всех остальных команд
   if (!hasPermission(message.author.id)) {
-    await message.channel.send('fuck off');
+    await sendDeniedNotification(message.channel);
     return;
   }
   
   // :help
   if (command === 'help') {
-    const helpEmbed = {
-      color: 0x0099ff,
-      title: '📋 Command List',
-      description: 'Here are all available bot commands:',
-      fields: [
-        {
-          name: ':rainbow [@user]',
-          value: 'Starts the rainbow role cycle for the specified user (changes every 2 seconds)',
-          inline: false
-        },
-        {
-          name: ':rainbow_stop [@user]',
-          value: 'Stops the rainbow cycle for the specified user',
-          inline: false
-        },
-        {
-          name: ':clear_rainbow [@user]',
-          value: 'Removes all rainbow roles from the specified user',
-          inline: false
-        },
-        {
-          name: ':purge <amount>',
-          value: 'Deletes the specified number of messages (max 100)',
-          inline: false
-        },
-        {
-          name: ':nuke',
-          value: 'Recreates the current channel (requires MANAGE_CHANNELS permission)',
-          inline: false
-        },
-        {
-          name: ':whitelist add @user',
-          value: 'Adds a user to whitelist (Owner only)',
-          inline: false
-        },
-        {
-          name: ':whitelist remove @user',
-          value: 'Removes a user from whitelist (Owner only)',
-          inline: false
-        },
-        {
-          name: ':whitelist list',
-          value: 'Shows all whitelisted users (Owner only)',
-          inline: false
-        },
-        {
-          name: ':help',
-          value: 'Shows this message with the list of all commands',
-          inline: false
-        }
-      ],
-      footer: {
-        text: 'Command prefix: : | Only whitelisted users can use commands'
-      }
-    };
+    const helpEmbed = new MessageEmbed()
+      .setColor(0x000000)
+      .setTitle('command list')
+      .setDescription('\`\`\`\n:rainbow [@user]           - starts rainbow role cycle\n:rainbow_stop [@user]     - stops rainbow cycle\n:clear_rainbow [@user]    - removes rainbow roles\n:purge <amount>           - deletes messages (1-100)\n:nuke                     - recreates current channel\n:whitelist add @user      - adds user to whitelist (owner)\n:whitelist remove @user   - removes user from whitelist (owner)\n:whitelist list           - shows whitelist (owner)\n:help                     - shows this message\`\`\`')
+      .setFooter({ text: '• command prefix: : •' })
+      .setTimestamp();
     
+    await sendSuccessNotification(message.channel, 'help');
     await message.channel.send({ embeds: [helpEmbed] });
     return;
   }
@@ -261,7 +273,10 @@ client.on('messageCreate', async (message) => {
     if (!target) return;
     
     const missing = rainbowRoleIds.filter(id => !message.guild.roles.cache.has(id));
-    if (missing.length > 0) return;
+    if (missing.length > 0) {
+      await sendErrorNotification(message.channel, 'some rainbow roles are missing on this server');
+      return;
+    }
     
     if (activeIntervals.has(target.id)) {
       clearInterval(activeIntervals.get(target.id));
@@ -270,15 +285,22 @@ client.on('messageCreate', async (message) => {
     
     const interval = await applyRainbowCycle(target);
     if (interval) activeIntervals.set(target.id, interval);
+    
+    await sendSuccessNotification(message.channel, 'rainbow', target);
     return;
   }
   
   // :rainbow_stop
   if (command === 'rainbow_stop') {
     const target = message.mentions.members.first() || message.member;
+    if (!target) return;
+    
     if (target && activeIntervals.has(target.id)) {
       clearInterval(activeIntervals.get(target.id));
       activeIntervals.delete(target.id);
+      await sendSuccessNotification(message.channel, 'rainbow_stop', target);
+    } else {
+      await sendErrorNotification(message.channel, `${target.user.tag} does not have an active rainbow cycle`);
     }
     return;
   }
@@ -292,9 +314,13 @@ client.on('messageCreate', async (message) => {
       const toRemove = rainbowRoleIds.filter(id => target.roles.cache.has(id));
       if (toRemove.length > 0) {
         await target.roles.remove(toRemove);
+        await sendSuccessNotification(message.channel, 'clear_rainbow', target);
+      } else {
+        await sendErrorNotification(message.channel, `${target.user.tag} has no rainbow roles`);
       }
     } catch (err) {
       console.error(err);
+      await sendErrorNotification(message.channel, 'an error occurred while removing roles');
     }
     return;
   }
@@ -302,20 +328,28 @@ client.on('messageCreate', async (message) => {
   // :purge
   if (command === 'purge') {
     const amount = parseInt(args[0], 10);
-    if (isNaN(amount) || amount <= 0 || amount > 100) return;
+    if (isNaN(amount) || amount <= 0 || amount > 100) {
+      await sendErrorNotification(message.channel, 'please provide a valid amount (1-100)');
+      return;
+    }
     
     try {
       const fetched = await message.channel.messages.fetch({ limit: amount });
       await message.channel.bulkDelete(fetched, true);
+      await sendSuccessNotification(message.channel, `purge ${amount}`, null, `deleted ${amount} messages`);
     } catch (err) {
       console.error(err);
+      await sendErrorNotification(message.channel, 'failed to delete messages (messages may be older than 14 days)');
     }
     return;
   }
   
   // :nuke
   if (command === 'nuke') {
-    if (!message.member.permissions.has('MANAGE_CHANNELS')) return;
+    if (!message.member.permissions.has('MANAGE_CHANNELS')) {
+      await sendErrorNotification(message.channel, 'you need manage_channels permission');
+      return;
+    }
     
     try {
       const channel = message.channel;
@@ -339,9 +373,10 @@ client.on('messageCreate', async (message) => {
         position: chanInfo.position
       });
       
-      await newChannel.send('Channel nuked and recreated');
+      await sendNukeNotification(newChannel);
     } catch (err) {
       console.error(err);
+      await sendErrorNotification(message.channel, 'failed to nuke channel');
     }
     return;
   }
