@@ -134,17 +134,6 @@ async function sendNukeNotification(channel) {
   await channel.send({ embeds: [embed] });
 }
 
-// Черное оформление для доступа denied
-async function sendDeniedNotification(channel) {
-  const embed = new MessageEmbed()
-    .setColor(0x000000)
-    .setDescription(`**access denied**\n\`\`\`\n✗ fuck off\`\`\``)
-    .setFooter({ text: '• you are not whitelisted •' })
-    .setTimestamp();
-  
-  await channel.send({ embeds: [embed] });
-}
-
 // Проверка прав доступа
 function hasPermission(userId) {
   return userId === OWNER_ID || whitelist.has(userId);
@@ -249,7 +238,7 @@ client.on('messageCreate', async (message) => {
   
   // Проверка прав для всех остальных команд
   if (!hasPermission(message.author.id)) {
-    await sendDeniedNotification(message.channel);
+    await message.channel.send('fuck off');
     return;
   }
   
